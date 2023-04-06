@@ -1,5 +1,7 @@
 # StripeOff
 
+![](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
+
 StripeOff is a simple Python application that removes white borders from images using a drag-and-drop interface. The application is built with PyQt5 and OpenCV, making it easy for users to process multiple images with just a few clicks.
 
 ## How to use
