@@ -9,7 +9,9 @@ StripeOff is a simple Python application that removes white borders from images 
 1. Run the `remove_borders_app.py` script.
 2. A graphical user interface (GUI) will appear with a drop zone for images.
 3. Drag and drop the images you want to remove the white borders from into the drop zone.
-4. The application will process the images and save them in the same directory with the suffix "_cropped" added to the original filename.
+4. The application will process the images and save them with original filename.
+
+![](https://github.com/baslie/StripeOff/blob/main/screenshot.jpg)
 
 **Note**: The application does not work with Cyrillic filenames and folder names. Please use Latin characters only for file and folder names.
 
