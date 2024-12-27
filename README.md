@@ -1,51 +1,53 @@
 # StripeOff
 
-![](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
+![Пример до и после](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
 
-StripeOff is a simple Python application that removes white borders from images using a drag-and-drop interface. The application is built with PyQt5 and OpenCV, making it easy for users to process multiple images with just a few clicks.
+**StripeOff** — это простое приложение на Python, которое убирает белые границы с изображений. Оно оснащено удобным интерфейсом на основе перетаскивания (drag-and-drop). Программа построена на PyQt5 и OpenCV, что позволяет пользователям обрабатывать сразу несколько изображений всего за пару кликов.
 
-## How to use
+## Как пользоваться
 
-1. Run the `remove_borders_app.py` script.
-2. A graphical user interface (GUI) will appear with a drop zone for images.
-3. Drag and drop the images you want to remove the white borders from into the drop zone.
-4. The application will process the images and save them with original filename.
+1. Запустите скрипт `remove_borders_app.py`.
+2. Откроется графический интерфейс (GUI) с зоной для перетаскивания изображений.
+3. Перетащите изображения, с которых нужно удалить белые границы, в эту зону.
+4. Программа обработает изображения и сохранит их с оригинальными именами файлов.
 
-**Note**: The application does not work with Cyrillic filenames and folder names. Please use Latin characters only for file and folder names.
+**Важно**: приложение не поддерживает кириллические названия файлов и папок. Используйте только латинские символы в именах.
 
-![](https://github.com/baslie/StripeOff/blob/main/screenshot.jpg)
+![Скриншот приложения](https://github.com/baslie/StripeOff/blob/main/screenshot.jpg)
 
-## Dependencies
+## Зависимости
 
-- Python 3.6 or later
+Для работы программы вам понадобятся:
+
+- Python версии 3.6 или выше
 - OpenCV
 - PyQt5
 
-To install the dependencies, run:
+Установите зависимости, выполнив команды:
 
 ```
 pip install opencv-python
 pip install PyQt5
 ```
 
-## Compiling with PyInstaller
+## Компиляция с помощью PyInstaller
 
-To compile the script into an executable using PyInstaller, follow these steps:
+Чтобы скомпилировать скрипт в исполняемый файл с использованием PyInstaller, выполните следующие шаги:
 
-1. Install PyInstaller:
+1. Установите PyInstaller:
 
 ```
 pip install pyinstaller
 ```
 
-2. Run the following command in the terminal or command prompt:
+2. Запустите следующую команду в терминале или командной строке:
 
 ```
 pyinstaller --name StripeOff --onefile --icon=eraser.ico --noconsole remove_borders_app.py
 ```
 
-The compiled executable will be located in the **`dist`** directory.
+Скомпилированный файл будет находиться в папке **`dist`**.
 
-## License
+## Лицензия
 
-This project is released under the MIT License.
+Этот проект распространяется под лицензией MIT.
