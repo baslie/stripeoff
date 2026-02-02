@@ -73,4 +73,4 @@ Output:
 
 ## License
 
-MIT
+[MIT](LICENSE)
