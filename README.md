@@ -1,65 +1,65 @@
 # StripeOff
 
-![Пример до и после](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
+![Before and after example](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
 
-**StripeOff** — простое приложение для удаления белых рамок с изображений. Перетащите файлы или папку — программа обработает всё автоматически.
+**StripeOff** — a simple application for removing white borders from images. Drag and drop files or a folder — the program will process everything automatically.
 
-## Возможности
+## Features
 
-- Drag-and-drop интерфейс
-- Поддержка папок (рекурсивная обработка всех изображений)
-- Локализация: русский и английский языки
-- История обработки с отображением прогресса
-- Поддержка форматов: PNG, JPG, JPEG, BMP, WebP
+- Drag-and-drop interface
+- Folder support (recursive processing of all images)
+- Localization: Russian and English
+- Processing history with progress display
+- Supported formats: PNG, JPG, JPEG, BMP, WebP
 
-## Как пользоваться
+## How to Use
 
-1. Запустите `remove_borders_app.py`
-2. Перетащите изображения или папку в окно программы
-3. Обработанные файлы сохраняются рядом с оригиналами с суффиксом `_cropped`
+1. Run `remove_borders_app.py`
+2. Drag images or a folder into the program window
+3. Processed files are saved next to the originals with the `_cropped` suffix
 
-![Скриншот приложения](https://github.com/baslie/StripeOff/blob/main/screenshot.jpg)
+![Application screenshot](https://github.com/baslie/StripeOff/blob/main/screenshot.jpg)
 
-## Установка
+## Installation
 
-### Вариант 1: Установщик (рекомендуется)
+### Option 1: Installer (recommended)
 
-Скачайте `StripeOff_Setup_1.0.0.exe` из [Releases](https://github.com/baslie/StripeOff/releases) и запустите. Установщик создаст ярлыки на рабочем столе и в меню Пуск.
+Download `StripeOff_Setup_1.0.0.exe` from [Releases](https://github.com/baslie/StripeOff/releases) and run it. The installer will create shortcuts on the desktop and in the Start menu.
 
-### Вариант 2: Портативная версия
+### Option 2: Portable version
 
-Скачайте `StripeOff.exe` из [Releases](https://github.com/baslie/StripeOff/releases) — запускается без установки.
+Download `StripeOff.exe` from [Releases](https://github.com/baslie/StripeOff/releases) — runs without installation.
 
-### Вариант 3: Из исходников
+### Option 3: From source
 
-Требуется Python 3.9+
+Requires Python 3.9+
 
 ```
 pip install -r requirements.txt
 python remove_borders_app.py
 ```
 
-## Сборка
+## Building
 
-### Портативный EXE
+### Portable EXE
 
 ```
 pip install pyinstaller
-pyinstaller --name StripeOff --onefile --icon=eraser.ico --noconsole remove_borders_app.py
+pyinstaller StripeOff.spec
 ```
 
-### Установщик
+### Installer
 
-Требуется [Inno Setup 6](https://jrsoftware.org/isdl.php).
+Requires [Inno Setup 6](https://jrsoftware.org/isdl.php).
 
 ```
 build_installer.bat
 ```
 
-Результат:
-- `dist/StripeOff.exe` — портативная версия
-- `dist/StripeOff_Setup_1.0.0.exe` — установщик
+Output:
+- `dist/StripeOff.exe` — portable version
+- `dist/StripeOff_Setup_1.0.0.exe` — installer
 
-## Лицензия
+## License
 
 MIT
