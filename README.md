@@ -23,20 +23,43 @@
 
 ## Установка
 
+### Вариант 1: Установщик (рекомендуется)
+
+Скачайте `StripeOff_Setup_1.0.0.exe` из [Releases](https://github.com/baslie/StripeOff/releases) и запустите. Установщик создаст ярлыки на рабочем столе и в меню Пуск.
+
+### Вариант 2: Портативная версия
+
+Скачайте `StripeOff.exe` из [Releases](https://github.com/baslie/StripeOff/releases) — запускается без установки.
+
+### Вариант 3: Из исходников
+
 Требуется Python 3.9+
 
 ```
 pip install -r requirements.txt
+python remove_borders_app.py
 ```
 
-## Компиляция в EXE
+## Сборка
+
+### Портативный EXE
 
 ```
 pip install pyinstaller
 pyinstaller --name StripeOff --onefile --icon=eraser.ico --noconsole remove_borders_app.py
 ```
 
-Готовый файл будет в папке `dist`.
+### Установщик
+
+Требуется [Inno Setup 6](https://jrsoftware.org/isdl.php).
+
+```
+build_installer.bat
+```
+
+Результат:
+- `dist/StripeOff.exe` — портативная версия
+- `dist/StripeOff_Setup_1.0.0.exe` — установщик
 
 ## Лицензия
 
