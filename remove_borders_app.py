@@ -115,7 +115,7 @@ class RemoveBordersWindow(QMainWindow):
         self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setStyleSheet('background-color: #333; color: white;')
 
-        self.drop_zone = QLabel('<p style="line-height: 1.5;">Drag and drop images here</p>', self)
+        self.drop_zone = QLabel('Drag and drop images here', self)
         self.drop_zone.setGeometry(10, 40, 780, 200)
         self.drop_zone.setStyleSheet('background-color: #444; color: white; border: 2px dashed #666; font-size: 18px;')
         self.drop_zone.setAlignment(Qt.AlignCenter)
@@ -125,10 +125,8 @@ class RemoveBordersWindow(QMainWindow):
         self.drop_zone.installEventFilter(self.drop_filter)
 
         self.warning_label = QLabel(
-            '<p style="line-height: 1.5;">'
             'The program does not work with Cyrillic image and folder names.<br/>'
-            'File and folder names must be in Latin characters only!'
-            '</p>',
+            'File and folder names must be in Latin characters only!',
             self
         )
         self.warning_label.setStyleSheet('color: white; font-size: 14px;')
@@ -168,16 +166,14 @@ class RemoveBordersWindow(QMainWindow):
             if len(failed_files) > 5:
                 failed_list += f'<br/>... and {len(failed_files) - 5} more'
             popup.setText(
-                f'<p style="line-height: 1.5;">'
                 f'Successfully processed: {success_count}<br/>'
                 f'Failed: {len(failed_files)}<br/><br/>'
                 f'Failed files:<br/>{failed_list}'
-                f'</p>'
             )
         else:
             popup.setIcon(QMessageBox.Information)
             popup.setWindowTitle('Done')
-            popup.setText(f'<p style="line-height: 1.5;">Successfully processed {success_count} image(s)!</p>')
+            popup.setText(f'Successfully processed {success_count} image(s)!')
 
         popup.exec_()
 
