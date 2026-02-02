@@ -3,10 +3,14 @@
 
 import sys
 import os
+
+# Подавление предупреждений Qt о несовместимых шрифтах (Noto Display ExtraCondensed и др.)
+os.environ['QT_LOGGING_RULES'] = 'qt.qpa.fonts=false'
+
 import cv2
 from PyQt5.QtWidgets import QApplication, QMessageBox, QLabel, QMainWindow
 from PyQt5.QtCore import Qt, QObject, QEvent
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QFont, QIcon
 
 # Константы
 WINDOW_WIDTH = 800
@@ -111,9 +115,9 @@ class RemoveBordersWindow(QMainWindow):
         self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setStyleSheet('background-color: #333; color: white;')
 
-        self.drop_zone = QLabel('Drag and drop images here', self)
+        self.drop_zone = QLabel('<p style="line-height: 1.5;">Drag and drop images here</p>', self)
         self.drop_zone.setGeometry(10, 40, 780, 200)
-        self.drop_zone.setStyleSheet('background-color: #444; color: white; border: 2px dashed #666;')
+        self.drop_zone.setStyleSheet('background-color: #444; color: white; border: 2px dashed #666; font-size: 18px;')
         self.drop_zone.setAlignment(Qt.AlignCenter)
         self.drop_zone.setAcceptDrops(True)
 
@@ -121,11 +125,13 @@ class RemoveBordersWindow(QMainWindow):
         self.drop_zone.installEventFilter(self.drop_filter)
 
         self.warning_label = QLabel(
+            '<p style="line-height: 1.5;">'
             'The program does not work with Cyrillic image and folder names.<br/>'
-            'File and folder names must be in Latin characters only!',
+            'File and folder names must be in Latin characters only!'
+            '</p>',
             self
         )
-        self.warning_label.setStyleSheet('color: white;')
+        self.warning_label.setStyleSheet('color: white; font-size: 14px;')
         self.warning_label.setAlignment(Qt.AlignCenter)
         self.warning_label.setWordWrap(True)
         self.warning_label.setGeometry(0, 0, self.width(), self.warning_label.sizeHint().height())
@@ -153,28 +159,32 @@ class RemoveBordersWindow(QMainWindow):
     def show_result_popup(self, success_count: int, failed_files: list[str]) -> None:
         """Показывает результат обработки."""
         popup = QMessageBox(self)
+        popup.setStyleSheet('font-size: 14px;')
 
         if failed_files:
             popup.setIcon(QMessageBox.Warning)
             popup.setWindowTitle('Processing Complete')
-            failed_list = '\n'.join(failed_files[:5])
+            failed_list = '<br/>'.join(failed_files[:5])
             if len(failed_files) > 5:
-                failed_list += f'\n... and {len(failed_files) - 5} more'
+                failed_list += f'<br/>... and {len(failed_files) - 5} more'
             popup.setText(
-                f'Successfully processed: {success_count}\n'
-                f'Failed: {len(failed_files)}\n\n'
-                f'Failed files:\n{failed_list}'
+                f'<p style="line-height: 1.5;">'
+                f'Successfully processed: {success_count}<br/>'
+                f'Failed: {len(failed_files)}<br/><br/>'
+                f'Failed files:<br/>{failed_list}'
+                f'</p>'
             )
         else:
             popup.setIcon(QMessageBox.Information)
             popup.setWindowTitle('Done')
-            popup.setText(f'Successfully processed {success_count} image(s)!')
+            popup.setText(f'<p style="line-height: 1.5;">Successfully processed {success_count} image(s)!</p>')
 
         popup.exec_()
 
 
 if __name__ == '__main__':
     app = QApplication([])
+    app.setFont(QFont('Segoe UI', 9))
     remove_borders_window = RemoveBordersWindow()
     remove_borders_window.show()
     app.exec_()
