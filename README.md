@@ -12,6 +12,17 @@
 - Processing history with progress display
 - Supported formats: PNG, JPG, JPEG, BMP, WebP
 
+## How It Works
+
+The app uses OpenCV to detect and remove white borders:
+
+1. **White pixel detection** — a pixel is considered white if all RGB channels are ≥ 250
+2. **Border scanning** — the algorithm scans from each edge (top, bottom, left, right) to find the first non-white row/column
+3. **Minimum threshold** — borders narrower than 5 pixels are ignored to avoid false positives
+4. **Cropping** — the image is cropped to the detected content boundaries
+
+This approach is fast and works well with scanned documents, screenshots, and images with uniform white margins.
+
 ## How to Use
 
 1. Run `remove_borders_app.py`
