@@ -12,15 +12,47 @@ from PyQt5.QtWidgets import (
     QApplication, QLabel, QMainWindow, QPushButton,
     QVBoxLayout, QHBoxLayout, QWidget, QScrollArea, QFrame
 )
-from PyQt5.QtCore import Qt, QObject, QEvent, QSettings, QTimer
+from PyQt5.QtCore import Qt, QObject, QEvent, QSettings, QTimer, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QIcon
 from enum import Enum
+from queue import Queue
 
 
 class ProcessResult(Enum):
     SUCCESS = "success"   # Обрезано и сохранено
     SKIPPED = "skipped"   # Белых рамок нет
     ERROR = "error"       # Ошибка обработки
+
+
+class ImageProcessorWorker(QThread):
+    """Рабочий поток для обработки изображений."""
+    file_processed = pyqtSignal(int, object, str)  # widget_id, result, output_name
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.task_queue = Queue()
+        self._running = True
+
+    def add_task(self, widget_id: int, path: str, output_path: str, output_name: str):
+        """Добавить задачу в очередь."""
+        self.task_queue.put((widget_id, path, output_path, output_name))
+
+    def run(self):
+        """Обработка задач из очереди."""
+        while self._running:
+            try:
+                task = self.task_queue.get(timeout=0.1)
+            except:
+                continue
+
+            widget_id, path, output_path, output_name = task
+            result = remove_borders(path, output_path)
+            self.file_processed.emit(widget_id, result, output_name)
+
+    def stop(self):
+        """Остановить рабочий поток."""
+        self._running = False
+        self.wait()
 
 
 # Константы
@@ -147,9 +179,12 @@ def collect_images_from_paths(paths: list[str]) -> list[str]:
 
 class FileItemWidget(QFrame):
     """Виджет для отображения одного обработанного файла."""
+    _next_id = 0  # Статический счётчик для уникальных ID
 
     def __init__(self, original_name: str, parent=None):
         super().__init__(parent)
+        self.widget_id = FileItemWidget._next_id
+        FileItemWidget._next_id += 1
         self.original_name = original_name
         self.setStyleSheet('''
             FileItemWidget {
@@ -260,8 +295,8 @@ class RemoveBordersWindow(QMainWindow):
         self.settings = QSettings('StripeOff', 'StripeOff')
         self.current_lang = self.settings.value('language', 'ru')
         self.file_widgets = []
-        self.processing_queue = []
-        self.is_processing = False
+        self.widget_registry = {}  # widget_id -> FileItemWidget
+        self.worker = None
         self.has_processed = False  # Флаг: были ли уже обработаны файлы
 
         self.setWindowIcon(QIcon(resource_path('eraser.ico')))
@@ -407,43 +442,37 @@ class RemoveBordersWindow(QMainWindow):
             self.welcome_widget.hide()
             self.scroll_area.show()
 
+        # Создать worker при первом вызове
+        if self.worker is None:
+            self.worker = ImageProcessorWorker(self)
+            self.worker.file_processed.connect(self._on_file_processed)
+            self.worker.start()
+
         for path in file_paths:
             original_name = os.path.basename(path)
             widget = FileItemWidget(original_name)
             self.files_layout.insertWidget(self.files_layout.count() - 1, widget)
             self.file_widgets.append(widget)
-            self.processing_queue.append((path, widget))
+
+            # Регистрация и добавление задачи
+            self.widget_registry[widget.widget_id] = widget
+            base, ext = os.path.splitext(path)
+            output_path = f"{base}_cropped{ext}"
+            output_name = os.path.basename(output_path)
+            self.worker.add_task(widget.widget_id, path, output_path, output_name)
 
         # Прокрутка вниз
         QTimer.singleShot(50, self._scroll_to_bottom)
-
-        # Запуск обработки
-        if not self.is_processing:
-            self._process_next()
 
     def _scroll_to_bottom(self):
         scrollbar = self.scroll_area.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    def _process_next(self):
-        """Обработать следующий файл в очереди."""
-        if not self.processing_queue:
-            self.is_processing = False
+    def _on_file_processed(self, widget_id: int, result: ProcessResult, output_name: str):
+        """Обработать результат от worker'а."""
+        widget = self.widget_registry.get(widget_id)
+        if widget is None:
             return
-
-        self.is_processing = True
-        path, widget = self.processing_queue.pop(0)
-
-        # Небольшая задержка для визуального эффекта
-        QTimer.singleShot(50, lambda: self._do_process(path, widget))
-
-    def _do_process(self, path: str, widget: FileItemWidget):
-        """Выполнить обработку файла."""
-        base, ext = os.path.splitext(path)
-        output_path = f"{base}_cropped{ext}"
-        output_name = os.path.basename(output_path)
-
-        result = remove_borders(path, output_path)
 
         if result == ProcessResult.SUCCESS:
             widget.set_success(output_name)
@@ -452,8 +481,11 @@ class RemoveBordersWindow(QMainWindow):
         else:
             widget.set_error()
 
-        # Обработка следующего файла
-        QTimer.singleShot(30, self._process_next)
+    def closeEvent(self, event):
+        """Корректно останавливаем worker при закрытии."""
+        if self.worker is not None:
+            self.worker.stop()
+        event.accept()
 
 
 if __name__ == '__main__':
