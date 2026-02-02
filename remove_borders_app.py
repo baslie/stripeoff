@@ -14,13 +14,21 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QObject, QEvent, QSettings, QTimer
 from PyQt5.QtGui import QFont, QIcon
+from enum import Enum
+
+
+class ProcessResult(Enum):
+    SUCCESS = "success"   # Обрезано и сохранено
+    SKIPPED = "skipped"   # Белых рамок нет
+    ERROR = "error"       # Ошибка обработки
+
 
 # Константы
-WINDOW_WIDTH = 520
-WINDOW_HEIGHT = 380
+WINDOW_WIDTH = 640
+WINDOW_HEIGHT = 480
 SUPPORTED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
-ADAPTIVE_THRESHOLD_BLOCK_SIZE = 11
-ADAPTIVE_THRESHOLD_C = 2
+WHITE_THRESHOLD = 250  # Пиксель считается белым если все каналы >= 250
+MIN_BORDER_WIDTH = 5   # Минимальная ширина рамки для обрезки (в пикселях)
 
 # Локализация
 TRANSLATIONS = {
@@ -29,12 +37,14 @@ TRANSLATIONS = {
         'app_name': 'StripeOff',
         'app_description': 'Remove white borders from images',
         'drop_hint': 'Drag and drop images or folder here',
+        'no_borders': 'No white borders detected',
     },
     'ru': {
         'window_title': 'Удаление белых рамок',
         'app_name': 'StripeOff',
         'app_description': 'Удаление белых рамок с изображений',
         'drop_hint': 'Перетащите изображения или папку сюда',
+        'no_borders': 'Белые рамки не обнаружены',
     }
 }
 
@@ -46,48 +56,78 @@ def resource_path(relative_path: str) -> str:
     return os.path.join(os.path.dirname(__file__), relative_path)
 
 
-def remove_borders(image_path: str, output_path: str) -> bool:
+def remove_borders(image_path: str, output_path: str) -> ProcessResult:
     """Удаляет белые границы с изображения."""
     try:
         image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None:
-            return False
+            return ProcessResult.ERROR
 
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        adaptive_thresh = cv2.adaptiveThreshold(
-            gray, 255,
-            cv2.ADAPTIVE_THRESH_MEAN_C,
-            cv2.THRESH_BINARY_INV,
-            ADAPTIVE_THRESHOLD_BLOCK_SIZE,
-            ADAPTIVE_THRESHOLD_C
+        h, w = image.shape[:2]
+
+        # Найти верхнюю границу контента (первая не-белая строка)
+        top = 0
+        for i in range(h):
+            row = image[i]
+            if not np.all(row >= WHITE_THRESHOLD):
+                top = i
+                break
+        else:
+            # Всё изображение белое
+            return ProcessResult.SKIPPED
+
+        # Найти нижнюю границу контента (последняя не-белая строка)
+        bottom = h
+        for i in range(h - 1, -1, -1):
+            row = image[i]
+            if not np.all(row >= WHITE_THRESHOLD):
+                bottom = i + 1
+                break
+
+        # Найти левую границу контента (первый не-белый столбец)
+        left = 0
+        for i in range(w):
+            col = image[:, i]
+            if not np.all(col >= WHITE_THRESHOLD):
+                left = i
+                break
+
+        # Найти правую границу контента (последний не-белый столбец)
+        right = w
+        for i in range(w - 1, -1, -1):
+            col = image[:, i]
+            if not np.all(col >= WHITE_THRESHOLD):
+                right = i + 1
+                break
+
+        # Проверить, есть ли значимые белые рамки
+        top_border = top
+        bottom_border = h - bottom
+        left_border = left
+        right_border = w - right
+
+        has_significant_border = (
+            top_border >= MIN_BORDER_WIDTH or
+            bottom_border >= MIN_BORDER_WIDTH or
+            left_border >= MIN_BORDER_WIDTH or
+            right_border >= MIN_BORDER_WIDTH
         )
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        closed = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
-        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not has_significant_border:
+            return ProcessResult.SKIPPED
 
-        max_area = 0
-        max_rect = (0, 0, 0, 0)
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            area = w * h
-            if area > max_area:
-                max_area = area
-                max_rect = (x, y, w, h)
+        # Обрезать изображение
+        cropped = image[top:bottom, left:right]
 
-        x, y, w, h = max_rect
-        if w == 0 or h == 0:
-            return False
-
-        cropped_image = image[y:y+h, x:x+w]
         ext = os.path.splitext(output_path)[1]
-        is_success, im_buf = cv2.imencode(ext, cropped_image)
+        is_success, im_buf = cv2.imencode(ext, cropped)
         if is_success:
             im_buf.tofile(output_path)
-        return is_success
+            return ProcessResult.SUCCESS
+        return ProcessResult.ERROR
 
     except Exception:
-        return False
+        return ProcessResult.ERROR
 
 
 def collect_images_from_paths(paths: list[str]) -> list[str]:
@@ -174,6 +214,18 @@ class FileItemWidget(QFrame):
         self.status_label.setText('✗')
         self.status_label.setStyleSheet('color: #a77; font-size: 18px;')
         self.name_label.setStyleSheet('color: #a77; font-size: 16px;')
+
+    def set_skipped(self, message: str):
+        """Установить статус пропуска (нет белых рамок)."""
+        self.spinner_timer.stop()
+        self.status_label.setText('○')
+        self.status_label.setStyleSheet('color: #aa7; font-size: 18px;')
+        self.arrow_label.setText('—')
+        self.arrow_label.setStyleSheet('color: #777; font-size: 16px;')
+        self.arrow_label.show()
+        self.new_name_label.setText(message)
+        self.new_name_label.setStyleSheet('color: #aa7; font-size: 16px;')
+        self.new_name_label.show()
 
 
 class DropEventFilter(QObject):
@@ -291,12 +343,12 @@ class RemoveBordersWindow(QMainWindow):
             }
             QScrollBar:vertical {
                 background-color: #3a3a3a;
-                width: 6px;
-                border-radius: 3px;
+                width: 12px;
+                border-radius: 6px;
             }
             QScrollBar::handle:vertical {
                 background-color: #555;
-                border-radius: 3px;
+                border-radius: 6px;
                 min-height: 20px;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -391,10 +443,12 @@ class RemoveBordersWindow(QMainWindow):
         output_path = f"{base}_cropped{ext}"
         output_name = os.path.basename(output_path)
 
-        success = remove_borders(path, output_path)
+        result = remove_borders(path, output_path)
 
-        if success:
+        if result == ProcessResult.SUCCESS:
             widget.set_success(output_name)
+        elif result == ProcessResult.SKIPPED:
+            widget.set_skipped(self.tr('no_borders'))
         else:
             widget.set_error()
 
