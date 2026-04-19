@@ -23,5 +23,5 @@ if errorlevel 1 (
 echo.
 echo === Готово! ===
 echo Портативная версия: dist\StripeOff.exe
-echo Установщик: dist\StripeOff_Setup_1.0.0.exe
+echo Установщик: dist\StripeOff_Setup_1.1.0.exe
 pause
