@@ -2,26 +2,27 @@
 
 ![Before and after example](https://github.com/baslie/StripeOff/blob/main/before-after.jpg)
 
-**StripeOff** — a simple application for removing white borders from images. Drag and drop files or a folder — the program will process everything automatically.
+**StripeOff** — a simple application for removing empty (white or transparent) borders from images. Drag and drop files or a folder — the program will process everything automatically.
 
 ## Features
 
 - Drag-and-drop interface
 - Folder support (recursive processing of all images)
+- Transparent PNG support (alpha channel preserved on output)
 - Localization: Russian and English
 - Processing history with progress display
 - Supported formats: PNG, JPG, JPEG, BMP, WebP
 
 ## How It Works
 
-The app uses OpenCV to detect and remove white borders:
+The app uses OpenCV and NumPy to detect and remove empty borders:
 
-1. **White pixel detection** — a pixel is considered white if all RGB channels are ≥ 250
-2. **Border scanning** — the algorithm scans from each edge (top, bottom, left, right) to find the first non-white row/column
+1. **Empty pixel detection** — a pixel is considered empty if it is transparent (alpha ≤ 5) **or** white (all RGB channels ≥ 250)
+2. **Border scanning** — the algorithm builds a 2D mask and finds the first and last non-empty rows and columns
 3. **Minimum threshold** — borders narrower than 5 pixels are ignored to avoid false positives
-4. **Cropping** — the image is cropped to the detected content boundaries
+4. **Cropping** — the image is cropped to the detected content boundaries, preserving the alpha channel for PNG/WebP
 
-This approach is fast and works well with scanned documents, screenshots, and images with uniform white margins.
+This approach is fast and works well with scanned documents, screenshots, images with uniform white margins, and PNG exports with transparent padding (Figma, Photoshop, etc.).
 
 ## How to Use
 

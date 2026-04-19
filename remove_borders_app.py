@@ -9,7 +9,7 @@ os.environ['QT_LOGGING_RULES'] = 'qt.qpa.fonts=false'
 import cv2
 import numpy as np
 from PyQt5.QtWidgets import (
-    QApplication, QLabel, QMainWindow, QPushButton,
+    QApplication, QLabel, QMainWindow, QPushButton, QCheckBox,
     QVBoxLayout, QHBoxLayout, QWidget, QScrollArea, QFrame
 )
 from PyQt5.QtCore import Qt, QObject, QEvent, QSettings, QTimer, QThread, pyqtSignal
@@ -60,6 +60,7 @@ WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 SUPPORTED_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
 WHITE_THRESHOLD = 250  # Пиксель считается белым если все каналы >= 250
+ALPHA_THRESHOLD = 5    # Пиксель считается прозрачным если alpha <= 5
 MIN_BORDER_WIDTH = 5   # Минимальная ширина рамки для обрезки (в пикселях)
 
 # Локализация
@@ -69,14 +70,20 @@ TRANSLATIONS = {
         'app_name': 'StripeOff',
         'app_description': 'Remove white borders from images',
         'drop_hint': 'Drag and drop images or folder here',
-        'no_borders': 'No white borders detected',
+        'no_borders': 'No borders detected',
+        'overwritten': 'overwritten',
+        'overwrite_label': 'Overwrite originals',
+        'overwrite_tooltip': 'Originals are replaced with cropped versions (cannot be undone). When off — copies are saved with the _cropped suffix.',
     },
     'ru': {
         'window_title': 'Удаление белых рамок',
         'app_name': 'StripeOff',
         'app_description': 'Удаление белых рамок с изображений',
         'drop_hint': 'Перетащите изображения или папку сюда',
-        'no_borders': 'Белые рамки не обнаружены',
+        'no_borders': 'Рамки не обнаружены',
+        'overwritten': 'перезаписан',
+        'overwrite_label': 'Перезаписывать оригиналы',
+        'overwrite_tooltip': 'Оригиналы заменяются обрезанными версиями (нельзя отменить). Когда выключено — сохраняются копии с суффиксом _cropped.',
     }
 }
 
@@ -88,67 +95,50 @@ def resource_path(relative_path: str) -> str:
     return os.path.join(os.path.dirname(__file__), relative_path)
 
 
+def _build_empty_mask(image: np.ndarray) -> np.ndarray:
+    """Вернуть 2D-маску, где True — пиксель «пустой» (прозрачный или белый)."""
+    if image.ndim == 3 and image.shape[2] == 4:
+        alpha = image[:, :, 3]
+        bgr = image[:, :, :3]
+        return (alpha <= ALPHA_THRESHOLD) | np.all(bgr >= WHITE_THRESHOLD, axis=2)
+    if image.ndim == 3:
+        return np.all(image >= WHITE_THRESHOLD, axis=2)
+    return image >= WHITE_THRESHOLD
+
+
 def remove_borders(image_path: str, output_path: str) -> ProcessResult:
-    """Удаляет белые границы с изображения."""
+    """Удаляет пустые (прозрачные или белые) границы с изображения."""
     try:
-        image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)
+        image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
         if image is None:
             return ProcessResult.ERROR
 
         h, w = image.shape[:2]
+        empty_mask = _build_empty_mask(image)
 
-        # Найти верхнюю границу контента (первая не-белая строка)
-        top = 0
-        for i in range(h):
-            row = image[i]
-            if not np.all(row >= WHITE_THRESHOLD):
-                top = i
-                break
-        else:
-            # Всё изображение белое
+        rows_all_empty = np.all(empty_mask, axis=1)
+        non_empty_rows = np.where(~rows_all_empty)[0]
+        if non_empty_rows.size == 0:
             return ProcessResult.SKIPPED
 
-        # Найти нижнюю границу контента (последняя не-белая строка)
-        bottom = h
-        for i in range(h - 1, -1, -1):
-            row = image[i]
-            if not np.all(row >= WHITE_THRESHOLD):
-                bottom = i + 1
-                break
+        top = int(non_empty_rows[0])
+        bottom = int(non_empty_rows[-1]) + 1
 
-        # Найти левую границу контента (первый не-белый столбец)
-        left = 0
-        for i in range(w):
-            col = image[:, i]
-            if not np.all(col >= WHITE_THRESHOLD):
-                left = i
-                break
-
-        # Найти правую границу контента (последний не-белый столбец)
-        right = w
-        for i in range(w - 1, -1, -1):
-            col = image[:, i]
-            if not np.all(col >= WHITE_THRESHOLD):
-                right = i + 1
-                break
-
-        # Проверить, есть ли значимые белые рамки
-        top_border = top
-        bottom_border = h - bottom
-        left_border = left
-        right_border = w - right
+        cols_all_empty = np.all(empty_mask, axis=0)
+        non_empty_cols = np.where(~cols_all_empty)[0]
+        left = int(non_empty_cols[0])
+        right = int(non_empty_cols[-1]) + 1
 
         has_significant_border = (
-            top_border >= MIN_BORDER_WIDTH or
-            bottom_border >= MIN_BORDER_WIDTH or
-            left_border >= MIN_BORDER_WIDTH or
-            right_border >= MIN_BORDER_WIDTH
+            top >= MIN_BORDER_WIDTH or
+            (h - bottom) >= MIN_BORDER_WIDTH or
+            left >= MIN_BORDER_WIDTH or
+            (w - right) >= MIN_BORDER_WIDTH
         )
 
         if not has_significant_border:
             return ProcessResult.SKIPPED
 
-        # Обрезать изображение
         cropped = image[top:bottom, left:right]
 
         ext = os.path.splitext(output_path)[1]
@@ -235,12 +225,21 @@ class FileItemWidget(QFrame):
         self.status_label.setText(self.spinner_chars[self.spinner_index])
 
     def set_success(self, new_name: str):
-        """Установить статус успешной обработки."""
+        """Установить статус успешной обработки (копия с новым именем)."""
         self.spinner_timer.stop()
         self.status_label.setText('✓')
         self.status_label.setStyleSheet('color: #7a7; font-size: 18px;')
         self.arrow_label.show()
         self.new_name_label.setText(new_name)
+        self.new_name_label.show()
+
+    def set_overwritten(self, label: str):
+        """Установить статус успешной перезаписи оригинала."""
+        self.spinner_timer.stop()
+        self.status_label.setText('✓')
+        self.status_label.setStyleSheet('color: #7a7; font-size: 18px;')
+        self.new_name_label.setText(f'({label})')
+        self.new_name_label.setStyleSheet('color: #7a7; font-size: 14px; font-style: italic;')
         self.new_name_label.show()
 
     def set_error(self):
@@ -294,8 +293,10 @@ class RemoveBordersWindow(QMainWindow):
         super().__init__()
         self.settings = QSettings('StripeOff', 'StripeOff')
         self.current_lang = self.settings.value('language', 'ru')
+        self.overwrite_originals = self.settings.value('overwrite_originals', False, type=bool)
         self.file_widgets = []
         self.widget_registry = {}  # widget_id -> FileItemWidget
+        self.overwrite_registry = {}  # widget_id -> bool (был ли файл перезаписан)
         self.worker = None
         self.has_processed = False  # Флаг: были ли уже обработаны файлы
 
@@ -313,9 +314,48 @@ class RemoveBordersWindow(QMainWindow):
         main_layout.setContentsMargins(20, 15, 20, 20)
         main_layout.setSpacing(0)
 
-        # Верхняя панель с кнопкой языка
+        # Верхняя панель: чекбокс режима перезаписи + кнопка языка
         top_bar = QHBoxLayout()
+        top_bar.setSpacing(12)
         top_bar.addStretch()
+
+        self.overwrite_checkbox = QCheckBox()
+        self.overwrite_checkbox.setChecked(self.overwrite_originals)
+        self.overwrite_checkbox.setCursor(Qt.PointingHandCursor)
+        self.overwrite_checkbox.setStyleSheet('''
+            QCheckBox {
+                color: #888;
+                font-size: 12px;
+                spacing: 6px;
+            }
+            QCheckBox:hover {
+                color: #ccc;
+            }
+            QCheckBox:checked {
+                color: #e8a070;
+            }
+            QCheckBox::indicator {
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                background-color: #3a3a3a;
+                border: 1px solid #555;
+            }
+            QCheckBox::indicator:hover {
+                background-color: #4a4a4a;
+                border: 1px solid #777;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #c07040;
+                border: 1px solid #d08050;
+            }
+            QCheckBox::indicator:checked:hover {
+                background-color: #d08050;
+            }
+        ''')
+        self.overwrite_checkbox.toggled.connect(self.on_mode_toggled)
+        top_bar.addWidget(self.overwrite_checkbox)
+
         self.lang_button = QPushButton()
         self.lang_button.setFixedSize(40, 22)
         self.lang_button.setStyleSheet('''
@@ -418,6 +458,12 @@ class RemoveBordersWindow(QMainWindow):
         self.settings.setValue('language', self.current_lang)
         self.update_ui_texts()
 
+    def on_mode_toggled(self, checked: bool) -> None:
+        """Переключить режим: создавать копии или перезаписывать оригиналы."""
+        self.overwrite_originals = checked
+        self.settings.setValue('overwrite_originals', checked)
+        self.update_ui_texts()
+
     def update_ui_texts(self) -> None:
         """Обновить все тексты интерфейса."""
         self.setWindowTitle(self.tr('window_title'))
@@ -425,6 +471,8 @@ class RemoveBordersWindow(QMainWindow):
         self.desc_label.setText(self.tr('app_description'))
         self.hint_label.setText(self.tr('drop_hint'))
         self.lang_button.setText(self.current_lang.upper())
+        self.overwrite_checkbox.setText(self.tr('overwrite_label'))
+        self.overwrite_checkbox.setToolTip(self.tr('overwrite_tooltip'))
 
     def on_drag_enter(self):
         """Подсветка при перетаскивании."""
@@ -448,6 +496,7 @@ class RemoveBordersWindow(QMainWindow):
             self.worker.file_processed.connect(self._on_file_processed)
             self.worker.start()
 
+        overwrite = self.overwrite_originals
         for path in file_paths:
             original_name = os.path.basename(path)
             widget = FileItemWidget(original_name)
@@ -456,9 +505,14 @@ class RemoveBordersWindow(QMainWindow):
 
             # Регистрация и добавление задачи
             self.widget_registry[widget.widget_id] = widget
-            base, ext = os.path.splitext(path)
-            output_path = f"{base}_cropped{ext}"
-            output_name = os.path.basename(output_path)
+            self.overwrite_registry[widget.widget_id] = overwrite
+            if overwrite:
+                output_path = path
+                output_name = original_name
+            else:
+                base, ext = os.path.splitext(path)
+                output_path = f"{base}_cropped{ext}"
+                output_name = os.path.basename(output_path)
             self.worker.add_task(widget.widget_id, path, output_path, output_name)
 
         # Прокрутка вниз
@@ -474,8 +528,12 @@ class RemoveBordersWindow(QMainWindow):
         if widget is None:
             return
 
+        was_overwrite = self.overwrite_registry.pop(widget_id, False)
         if result == ProcessResult.SUCCESS:
-            widget.set_success(output_name)
+            if was_overwrite:
+                widget.set_overwritten(self.tr('overwritten'))
+            else:
+                widget.set_success(output_name)
         elif result == ProcessResult.SKIPPED:
             widget.set_skipped(self.tr('no_borders'))
         else:
